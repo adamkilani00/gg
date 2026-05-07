@@ -1,0 +1,516 @@
+Rapport de TP — Réseaux IP
+
+Université de Strasbourg — Licence 2 Informatique
+Année 2025-2026
+
+⸻
+
+TP Réseaux IP
+
+Binôme
+
+* Nom Prénom
+* Nom Prénom
+
+⸻
+
+Introduction
+
+L’objectif de ce TP est d’étudier le fonctionnement du routage IPv4, du découpage en sous-réseaux ainsi que les mécanismes de communication entre machines appartenant à des réseaux différents.
+
+Le TP permet également d’utiliser :
+
+* les commandes réseau Linux,
+* les commandes Cisco IOS,
+* ainsi que Wireshark pour analyser les échanges ARP et ICMP.
+
+Le réseau de départ fourni dans le sujet est :
+
+192.168.64.0/18
+
+￼
+
+⸻
+
+Question 1 — Création de deux sous-réseaux
+
+On souhaite créer deux sous-réseaux pouvant accueillir au maximum 2000 machines chacun.
+
+Le nombre d’hôtes disponibles dans un sous-réseau IPv4 est :
+
+2^n-2
+
+où :
+
+* n représente le nombre de bits hôtes,
+* on retire 2 adresses :
+    * l’adresse réseau,
+    * l’adresse de broadcast.
+
+Recherche du nombre de bits nécessaires
+
+Bits hôtes	Hôtes utilisables	Suffisant
+10	1022	Non
+11	2046	Oui
+
+Il faut donc 11 bits pour les hôtes.
+
+Le préfixe devient :
+
+32-11=21
+
+Le masque utilisé sera donc :
+
+/21
+
+⸻
+
+Sous-réseaux choisis
+
+Nous choisissons les deux sous-réseaux suivants :
+
+Sous-réseau	Adresse réseau
+Réseau A	192.168.80.0/21
+Réseau B	192.168.88.0/21
+
+Avec un masque /21, les réseaux avancent par blocs de 8 dans le troisième octet :
+
+80 → 88 → 96 → ...
+
+⸻
+
+Question 2 — Caractéristiques des sous-réseaux
+
+Masque décimal pointé
+
+Le masque /21 correspond à :
+
+11111111.11111111.11111000.00000000
+
+Soit :
+
+255.255.248.0
+
+⸻
+
+Réseau A — 192.168.80.0/21
+
+Paramètre	Valeur
+Adresse réseau	192.168.80.0
+Masque	255.255.248.0
+Première IP	192.168.80.1
+Dernière IP	192.168.87.254
+Broadcast	192.168.87.255
+Nombre d’hôtes	2046
+
+⸻
+
+Réseau B — 192.168.88.0/21
+
+Paramètre	Valeur
+Adresse réseau	192.168.88.0
+Masque	255.255.248.0
+Première IP	192.168.88.1
+Dernière IP	192.168.95.254
+Broadcast	192.168.95.255
+Nombre d’hôtes	2046
+
+⸻
+
+Question 3 — Communication sans routage
+
+Topologie
+
+PC1 -------- Switch -------- PC2
+
+⸻
+
+3a — Configuration de PC1
+
+Configuration de PC1 dans le réseau A.
+
+Commandes Linux
+
+sudo ip addr add 192.168.80.10/21 dev eth0
+sudo ip link set eth0 up
+
+Vérification
+
+ip addr
+
+Explication
+
+Commande	Rôle
+ip addr add	Ajoute une adresse IP
+ip link set up	Active l’interface réseau
+
+⸻
+
+3b — Configuration de PC2 avec erreur volontaire
+
+PC2 doit être configuré avec un masque incorrect /19.
+
+Commandes
+
+sudo ip addr add 192.168.88.10/19 dev eth0
+sudo ip link set eth0 up
+
+Avec le masque /19, PC2 croit appartenir au réseau :
+
+192.168.64.0/19
+
+Ce réseau couvre :
+
+192.168.64.0 → 192.168.95.255
+
+PC2 pense donc que PC1 appartient au même réseau local.
+
+⸻
+
+3c — Capture Wireshark
+
+Lancement
+
+wireshark &
+
+Dans Wireshark :
+
+* sélectionner l’interface eth0,
+* cliquer sur Start.
+
+Filtres utilisés
+
+arp
+icmp
+icmp or arp
+
+⸻
+
+3d — Ping de PC1 vers PC2
+
+Commande
+
+ping 192.168.88.10
+
+Analyse
+
+PC1 possède le masque correct /21.
+
+Son réseau est :
+
+192.168.80.0/21
+
+Le réseau couvre :
+
+192.168.80.0 → 192.168.87.255
+
+L’adresse de PC2 (192.168.88.10) est considérée comme distante.
+
+PC1 tente donc d’utiliser une passerelle par défaut, mais aucune route n’est configurée.
+
+Le paquet ne peut pas être envoyé.
+
+Résultat
+
+Le ping échoue.
+
+Observation Wireshark
+
+Avec le filtre :
+
+icmp
+
+on observe :
+
+* aucune réponse ICMP,
+* aucun échange complet.
+
+Ajouter ici :
+
+* capture Wireshark du ping échoué,
+* capture des paquets ICMP.
+
+⸻
+
+3e — Ping de PC2 vers PC1
+
+Commande
+
+ping 192.168.80.10
+
+Analyse
+
+Avec le masque /19, PC2 pense que PC1 est dans le même réseau local.
+
+PC2 envoie donc des requêtes ARP afin de trouver l’adresse MAC de PC1.
+
+On observe des requêtes ARP répétées.
+
+Cependant, la communication ICMP échoue car PC1 considère PC2 comme appartenant à un réseau distant et aucune route n’est configurée.
+
+Résultat
+
+Le ping échoue.
+
+Observation Wireshark
+
+Filtre utilisé :
+
+icmp or arp
+
+On observe :
+
+* les requêtes ARP,
+* des tentatives ICMP,
+* aucune réponse ICMP complète.
+
+Ajouter ici :
+
+* capture des requêtes ARP,
+* capture du ping échoué.
+
+⸻
+
+Conclusion Question 3
+
+Cette expérience montre qu’une erreur de masque peut empêcher totalement la communication.
+
+Les deux machines n’ont pas la même vision du réseau :
+
+* PC1 considère PC2 comme distant,
+* PC2 considère PC1 comme local.
+
+Le routage devient alors incohérent.
+
+⸻
+
+Question 4 — Mise en place du routage
+
+Topologie
+
+PC1 ---- R1 ---- R2 ---- PC2
+
+Le lien entre les routeurs utilise le réseau :
+
+10.0.0.0/30
+
+⸻
+
+4a — Configuration correcte des PC
+
+PC1
+
+sudo ip addr add 192.168.80.10/21 dev eth0
+sudo ip link set eth0 up
+
+PC2
+
+sudo ip addr add 192.168.88.10/21 dev eth0
+sudo ip link set eth0 up
+
+⸻
+
+4b — Connexion console Cisco
+
+Détection du port série
+
+ls /dev/ttyS*
+
+Connexion au routeur
+
+screen /dev/ttyS0 9600
+
+Quitter screen
+
+Ctrl+A puis K puis Y
+
+⸻
+
+Configuration du Routeur R1
+
+enable
+configure terminal
+interface fastEthernet 0/0
+ip address 192.168.80.254 255.255.248.0
+no shutdown
+exit
+interface fastEthernet 0/1
+ip address 10.0.0.1 255.255.255.252
+no shutdown
+exit
+write memory
+
+⸻
+
+Configuration du Routeur R2
+
+enable
+configure terminal
+interface fastEthernet 0/0
+ip address 192.168.88.254 255.255.248.0
+no shutdown
+exit
+interface fastEthernet 0/1
+ip address 10.0.0.2 255.255.255.252
+no shutdown
+exit
+write memory
+
+⸻
+
+Vérification des interfaces Cisco
+
+show ip interface brief
+
+Cette commande permet de vérifier :
+
+* les adresses IP,
+* l’état UP/DOWN des interfaces.
+
+⸻
+
+4c — Route statique sur PC1
+
+sudo ip route add 192.168.88.0/21 via 192.168.80.254
+
+PC1 sait maintenant que le réseau B est accessible via R1.
+
+⸻
+
+4d — Route statique sur PC2
+
+sudo ip route add 192.168.80.0/21 via 192.168.88.254
+
+PC2 utilise R2 pour joindre le réseau A.
+
+⸻
+
+4e — Analyse du ping avant ajout des routes sur les routeurs
+
+Commande
+
+ping 192.168.88.10
+
+Analyse
+
+PC1 envoie correctement les paquets vers R1.
+
+R1 transmet les paquets à R2.
+
+R2 transmet ensuite les paquets à PC2.
+
+PC2 reçoit donc les requêtes ICMP.
+
+Cependant, les routeurs ne possèdent pas encore les routes de retour.
+
+Les réponses ICMP ne peuvent donc pas revenir jusqu’à PC1.
+
+Résultat
+
+Le ping échoue.
+
+Observation Wireshark
+
+Filtre :
+
+icmp
+
+On observe uniquement :
+
+* des Echo Request,
+* aucun Echo Reply.
+
+Ajouter ici :
+
+* capture Wireshark du ping échoué.
+
+⸻
+
+4f — Ajout des routes statiques sur les routeurs
+
+Route sur R1
+
+ip route 192.168.88.0 255.255.248.0 10.0.0.2
+
+Route sur R2
+
+ip route 192.168.80.0 255.255.248.0 10.0.0.1
+
+Sauvegarde
+
+write memory
+
+⸻
+
+Vérification des routes
+
+show ip route
+
+Cette commande permet de vérifier :
+
+* les réseaux connus,
+* les routes statiques,
+* les interfaces utilisées.
+
+⸻
+
+Test final
+
+Commande
+
+ping 192.168.88.10
+
+Résultat
+
+Le ping fonctionne correctement.
+
+Le chemin complet est maintenant opérationnel :
+
+PC1 → R1 → R2 → PC2
+PC2 → R2 → R1 → PC1
+
+⸻
+
+Analyse Wireshark finale
+
+Filtre utilisé :
+
+icmp
+
+On observe :
+
+* les Echo Request,
+* les Echo Reply,
+* les échanges aller-retour complets.
+
+Le TTL diminue également lors du passage par les routeurs.
+
+Ajouter ici :
+
+* capture du ping réussi,
+* capture des Echo Reply.
+
+⸻
+
+Conclusion générale
+
+Ce TP a permis de comprendre plusieurs notions importantes du réseau IPv4 :
+
+* le découpage en sous-réseaux,
+* le rôle du masque réseau,
+* le fonctionnement du protocole ARP,
+* le routage statique,
+* le rôle des routeurs,
+* ainsi que l’importance des chemins aller et retour.
+
+Les captures Wireshark ont permis d’observer concrètement :
+
+* les requêtes ARP,
+* les paquets ICMP,
+* et le comportement des équipements réseau lors des erreurs de configuration.
+
+Le TP montre également qu’une communication IP correcte nécessite :
+
+* une configuration cohérente des masques,
+* des routes valides,
+* et un routage bidirectionnel fonctionnel.
